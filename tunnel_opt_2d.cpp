@@ -90,8 +90,61 @@ void buildGraph()
 void drawGraph()
 {
 	sf::RenderWindow window(sf::VideoMode(800, 800), "Pose Graph Render");
-    sf::CircleShape shape(100.f);
-    shape.setFillColor(sf::Color::Green);
+
+	std::vector<sf::ConvexShape*> shapes;
+	std::vector<sf::Vertex*> lines;
+
+    for (VertexSE2 *vertex : robotPoseVertexList) {
+		Eigen::Vector2d location = vertex->estimate().translation()*100;
+		float angle = atan2(vertex->estimate().rotationMatrix()(0,1), vertex->estimate().rotationMatrix()(0,0));
+
+		sf::ConvexShape *convex = new sf::ConvexShape();
+		convex->setPointCount(3);
+
+		convex->setPoint(0, sf::Vector2f(0, 3));
+		convex->setPoint(1, sf::Vector2f(0, -3));
+		convex->setPoint(2, sf::Vector2f(20, 0));
+
+		convex->setPosition(location[0]+100, location[1]+100);
+		convex->rotate(angle*180/M_PI);
+		convex->setFillColor(sf::Color(250, 0, 0));
+
+		shapes.push_back(convex);
+	}
+
+	for (TunnelOrient *vertex : tunnelPoseVertexList) {
+		Eigen::Vector2d location = vertex->estimate().translation()*100;
+
+		float angle = atan2(vertex->estimate().rotationMatrix()(0,1), vertex->estimate().rotationMatrix()(0,0));
+
+		sf::ConvexShape *convex = new sf::ConvexShape();
+		convex->setPointCount(3);
+
+		// define the points
+		convex->setPoint(0, sf::Vector2f(0, 3));
+		convex->setPoint(1, sf::Vector2f(0, -3));
+		convex->setPoint(2, sf::Vector2f(20, 0));
+
+		convex->setPosition(location[0]+100, location[1]+100);
+		convex->rotate(angle*180/M_PI);
+		convex->setFillColor(sf::Color(0, 250, 0));
+
+		//std::cout << convex->getPosition() << "\n";
+		shapes.push_back(convex);
+	}
+ 
+	for (EdgeSE2 *edge : robotPoseEdgeList) {
+		Eigen::Vector2d from = edge->from()->estimate().translation()*100;
+		Eigen::Vector2d to = edge->to()->estimate().translation()*100;
+		
+		//Have to malloc so we don't go out of scope
+		sf::Vertex *line = (sf::Vertex *)malloc(2*sizeof(sf::Vertex));
+
+		line[0] = sf::Vertex(sf::Vector2f(from[0] + 100, from[1]+100));
+		line[1] = sf::Vertex(sf::Vector2f(to[0] + 100, to[1]+100));
+
+		lines.push_back(line);
+	}
 
     while (window.isOpen())
     {
@@ -103,7 +156,11 @@ void drawGraph()
         }
 
         window.clear();
-        window.draw(shape);
+		for (auto shape : shapes)
+			window.draw(*shape);
+		for (auto line : lines)
+			window.draw(line, 2, sf::Lines);
+
         window.display();
     }
 }

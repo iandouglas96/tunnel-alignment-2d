@@ -140,6 +140,18 @@ public:
 		else
 			_from->setEstimate(_to->estimate() * _inverseMeasurement);
 	}
+
+	const VertexSE2 *from() 
+	{
+		VertexSE2 *_from = static_cast<VertexSE2*>(_vertices[0]);
+		return _from;
+	}
+
+	const VertexSE2 *to() 
+	{
+		VertexSE2 *_to   = static_cast<VertexSE2*>(_vertices[1]);
+		return _to;
+	}
 	
 protected:
 	Sophus::SE2d _inverseMeasurement;
