@@ -57,6 +57,9 @@ void optimizeGraph()
 
 void buildGraph()
 {
+	Sophus::SE2d edge_trans = Sophus::SE2d();
+	Eigen::Vector2d rot;
+
 	//Hardcode construction of a graph for testing
 	robotPoseVertexList.push_back(addRobotVertex(false, Sophus::SE2d()));
 	robotPoseVertexList.push_back(addRobotVertex(false, Sophus::SE2d()));
@@ -64,8 +67,18 @@ void buildGraph()
 	tunnelPoseVertexList.push_back(addTunnelVertex(true, Sophus::SE2d()));
 	tunnelPoseVertexList.push_back(addTunnelVertex(false, Sophus::SE2d()));
 
-	Sophus::SE2d edge_trans = Sophus::SE2d();
-	Eigen::Vector2d rot;
+	rot << cos(0),sin(0);
+	edge_trans.so2().setComplex(rot);
+	edge_trans.translation() << -0.2, 0;
+	tunnelPoseVertexList[0]->setPose(-1, edge_trans);
+	edge_trans.translation() << 0.2, 0;
+	tunnelPoseVertexList[0]->setPose(1, edge_trans);
+
+	edge_trans.translation() << -0.2, 0;
+	tunnelPoseVertexList[1]->setPose(-1, edge_trans);
+	edge_trans.translation() << 0.2, 0;
+	tunnelPoseVertexList[1]->setPose(1, edge_trans);
+
 	/*rot << cos(M_PI/4),sin(M_PI/4);
 	edge_trans.so2().setComplex(rot);
 	edge_trans.translation() << 1, 0;
@@ -113,24 +126,34 @@ void drawGraph()
 	}
 
 	for (TunnelOrient *vertex : tunnelPoseVertexList) {
-		Eigen::Vector2d location = vertex->estimate().translation()*100;
+		Sophus::SE2d center_pose = vertex->estimate();
+		for (int i=-NUM_TUNNEL_SEGMENTS/2; i<=NUM_TUNNEL_SEGMENTS/2; i++) {
+			Sophus::SE2d pose = vertex->getPose(i);
+			if (i != 0) {
+				pose = center_pose*pose;
+			}
 
-		float angle = atan2(vertex->estimate().rotationMatrix()(0,1), vertex->estimate().rotationMatrix()(0,0));
+			Eigen::Vector2d location = pose.translation()*100;
+			float angle = atan2(pose.rotationMatrix()(0,1), pose.rotationMatrix()(0,0));
 
-		sf::ConvexShape *convex = new sf::ConvexShape();
-		convex->setPointCount(3);
+			sf::ConvexShape *convex = new sf::ConvexShape();
+			convex->setPointCount(3);
 
-		// define the points
-		convex->setPoint(0, sf::Vector2f(0, 3));
-		convex->setPoint(1, sf::Vector2f(0, -3));
-		convex->setPoint(2, sf::Vector2f(20, 0));
+			// define the points
+			convex->setPoint(0, sf::Vector2f(0, 3));
+			convex->setPoint(1, sf::Vector2f(0, -3));
+			convex->setPoint(2, sf::Vector2f(20, 0));
 
-		convex->setPosition(location[0]+100, location[1]+100);
-		convex->rotate(angle*180/M_PI);
-		convex->setFillColor(sf::Color(0, 250, 0));
+			convex->setPosition(location[0]+100, location[1]+100);
+			convex->rotate(angle*180/M_PI);
+			if (i==0)
+				convex->setFillColor(sf::Color(0, 250, 0));
+			else
+				convex->setFillColor(sf::Color(0, 100, 0));
 
-		//std::cout << convex->getPosition() << "\n";
-		shapes.push_back(convex);
+			//std::cout << convex->getPosition() << "\n";
+			shapes.push_back(convex);
+		}
 	}
  
 	for (EdgeSE2 *edge : robotPoseEdgeList) {

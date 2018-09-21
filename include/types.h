@@ -59,6 +59,8 @@ public:
 			crossSectionPoses[-2*num-1] = pose;
 		else
 			crossSectionPoses[2*(num-1)] = pose;
+
+		calculateSpline();
 	}
 
 	Sophus::SE2d &getPose(int num) {
@@ -70,8 +72,35 @@ public:
 		return crossSectionPoses[2*(num-1)];
 	}
 
+	void calculateSpline() {
+		for (int i=-1; i<1; i++) {
+			Eigen::Vector2d p1 = getPose(i).translation();
+			Eigen::Vector2d p2 = getPose(i+1).translation();
+
+			float slope1 = getPose(i).rotationMatrix()(0,1)/getPose(i).rotationMatrix()(0,0);
+			if (isnan(slope1))
+				slope1 = 10000;
+			float slope2 = getPose(i+1).rotationMatrix()(0,1)/getPose(i+1).rotationMatrix()(0,0);
+			if (isnan(slope2))
+				slope2 = 10000;
+			Eigen::Matrix4d A;
+			A <<	1,	p1(0),	(p1(0))*(p1(0)),	pow(p1(0),3),
+					1,	p2(0),	(p2(0))*(p2(0)),	pow(p2(0),3),
+					0,	1,		2*(p1(0)),		3*(p1(0))*(p1(0)),
+					0,	1,		2*(p2(0)),		3*(p2(0))*(p2(0));
+
+			Eigen::Vector4d y;
+			y << p1(1), p2(1), slope1, slope2;
+
+			//Solve for coefficients for polynomial
+			splines.block<1, 4>(i+1, 0) = A.inverse()*y;
+		}
+		std::cout << "Splines:\n" << splines << "\n";
+	}
+
 private:
 	std::vector<Sophus::SE2d> crossSectionPoses;
+	Eigen::Matrix<double, 2, 4> splines; //Keep track of spline constants
 };
 
 /**
@@ -151,6 +180,30 @@ public:
 	{
 		VertexSE2 *_to   = static_cast<VertexSE2*>(_vertices[1]);
 		return _to;
+	}
+	
+protected:
+	Sophus::SE2d _inverseMeasurement;
+};
+
+/**
+* \brief 3D edge between two Vertex3
+*/
+class TunnelAlignEdge : public g2o::BaseBinaryEdge<3, Eigen::Vector3d, TunnelOrient, TunnelOrient>
+{
+public:
+	EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+	TunnelAlignEdge();
+	
+	virtual bool read(std::istream& is);
+	virtual bool write(std::ostream& os) const;
+	 
+	void computeError()
+	{
+		const TunnelOrient* _from = static_cast<const TunnelOrient*>(_vertices[0]);
+		const TunnelOrient* _to = static_cast<const TunnelOrient*>(_vertices[1]);
+
+		
 	}
 	
 protected:

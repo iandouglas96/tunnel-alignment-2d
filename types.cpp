@@ -10,6 +10,7 @@ G2O_REGISTER_TYPE_GROUP(se2sophus);
 G2O_REGISTER_TYPE(VERTEX_SE2_SOPHUS:EXPMAP, VertexSE2);
 G2O_REGISTER_TYPE(TUNNEL_ORIENT:EXPMAP, TunnelOrient);
 G2O_REGISTER_TYPE(EDGE_SE2_SOPHUS:EXPMAP, EdgeSE2);
+G2O_REGISTER_TYPE(TUNNEL_ALIGN_EDGE:EXPMAP, TunnelAlignEdge);
 
 TunnelOrient::TunnelOrient() : VertexSE2()
 {
@@ -51,6 +52,25 @@ bool EdgeSE2::write(std::ostream& os) const
 }
 
 bool EdgeSE2::read(std::istream& is)
+{
+	// TODO
+	assert(false);
+	return false;
+}
+
+TunnelAlignEdge::TunnelAlignEdge() :
+	g2o::BaseBinaryEdge<3, Eigen::Vector3d, TunnelOrient, TunnelOrient>()
+{
+}
+
+bool TunnelAlignEdge::write(std::ostream& os) const
+{
+	// TODO
+	assert(false);
+	return false;
+}
+
+bool TunnelAlignEdge::read(std::istream& is)
 {
 	// TODO
 	assert(false);
