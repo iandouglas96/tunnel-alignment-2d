@@ -63,13 +63,13 @@ public:
 		calculateSpline();
 	}
 
-	Sophus::SE2d &getPose(int num) {
+	Sophus::SE2d getPose(int num) {
 		if (num == 0)
 			return _estimate;
 		else if (num < 0)
-			return crossSectionPoses[-2*num-1];
+			return _estimate*crossSectionPoses[-2*num-1];
 
-		return crossSectionPoses[2*(num-1)];
+		return _estimate*crossSectionPoses[2*(num-1)];
 	}
 
 	void calculateSpline() {
@@ -77,12 +77,13 @@ public:
 			Eigen::Vector2d p1 = getPose(i).translation();
 			Eigen::Vector2d p2 = getPose(i+1).translation();
 
-			float slope1 = getPose(i).rotationMatrix()(0,1)/getPose(i).rotationMatrix()(0,0);
+			float slope1 = -getPose(i).rotationMatrix()(0,1)/getPose(i).rotationMatrix()(0,0);
 			if (isnan(slope1))
 				slope1 = 10000;
-			float slope2 = getPose(i+1).rotationMatrix()(0,1)/getPose(i+1).rotationMatrix()(0,0);
+			float slope2 = -getPose(i+1).rotationMatrix()(0,1)/getPose(i+1).rotationMatrix()(0,0);
 			if (isnan(slope2))
 				slope2 = 10000;
+
 			Eigen::Matrix4d A;
 			A <<	1,	p1(0),	(p1(0))*(p1(0)),	pow(p1(0),3),
 					1,	p2(0),	(p2(0))*(p2(0)),	pow(p2(0),3),
@@ -96,6 +97,11 @@ public:
 			splines.block<1, 4>(i+1, 0) = A.inverse()*y;
 		}
 		std::cout << "Splines:\n" << splines << "\n";
+	}
+
+	Eigen::Vector4d getSpline(int i)
+	{
+		return splines.block<1, 4>(i+1, 0);
 	}
 
 private:
@@ -189,7 +195,7 @@ protected:
 /**
 * \brief 3D edge between two Vertex3
 */
-class TunnelAlignEdge : public g2o::BaseBinaryEdge<3, Eigen::Vector3d, TunnelOrient, TunnelOrient>
+class TunnelAlignEdge : public g2o::BaseBinaryEdge<2, Eigen::Vector2d, TunnelOrient, TunnelOrient>
 {
 public:
 	EIGEN_MAKE_ALIGNED_OPERATOR_NEW
@@ -200,11 +206,18 @@ public:
 	 
 	void computeError()
 	{
-		const TunnelOrient* _from = static_cast<const TunnelOrient*>(_vertices[0]);
-		const TunnelOrient* _to = static_cast<const TunnelOrient*>(_vertices[1]);
+		TunnelOrient* _from = static_cast<TunnelOrient*>(_vertices[0]);
+		TunnelOrient* _to = static_cast<TunnelOrient*>(_vertices[1]);
 
-		
+		_to->calculateSpline();
+		for (int i=-1; i<1; i++) {
+			_error(i+1) = getError(_from->getPose(i).translation(), _to->getSpline(i));
+		}
+
+		std::cout << "error :\n" << _error << "\n";
 	}
+
+	double getError(Eigen::Vector2d& pos, Eigen::Vector4d spline);
 	
 protected:
 	Sophus::SE2d _inverseMeasurement;

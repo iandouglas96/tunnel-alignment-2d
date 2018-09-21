@@ -4,8 +4,7 @@
 
 int main() 
 {
-    //3 dimensions in both edges and nodes
-    typedef g2o::BlockSolver<g2o::BlockSolverTraits<3, 3>> BlockSolver;
+    typedef g2o::BlockSolver<g2o::BlockSolverTraits<-1, -1>> BlockSolver;
 	typedef g2o::LinearSolverCSparse<BlockSolver::PoseMatrixType> LinearSolver;
 
     //Initialization
@@ -14,7 +13,7 @@ int main()
 	g2o::OptimizationAlgorithmLevenberg* algorithm = new g2o::OptimizationAlgorithmLevenberg(blockSolver);
 	graph.setAlgorithm(algorithm);
 	
-    graph.setVerbose(false); // printOptimizationInfo
+    graph.setVerbose(true); // printOptimizationInfo
 	solver->setWriteDebug(true);
 	blockSolver->setWriteDebug(true);
 	algorithm->setWriteDebug(true);
@@ -69,14 +68,20 @@ void buildGraph()
 
 	rot << cos(0),sin(0);
 	edge_trans.so2().setComplex(rot);
-	edge_trans.translation() << -0.2, 0;
+	edge_trans.translation() << -1, 0;
 	tunnelPoseVertexList[0]->setPose(-1, edge_trans);
-	edge_trans.translation() << 0.2, 0;
+	edge_trans.translation() << 1, 0.2;
+	rot << cos(M_PI/15),sin(M_PI/15);
+	edge_trans.so2().setComplex(rot);
 	tunnelPoseVertexList[0]->setPose(1, edge_trans);
 
-	edge_trans.translation() << -0.2, 0;
+	edge_trans.translation() << -1, 0.2;
+	rot << cos(-M_PI/13),sin(-M_PI/13);
+	edge_trans.so2().setComplex(rot);
 	tunnelPoseVertexList[1]->setPose(-1, edge_trans);
-	edge_trans.translation() << 0.2, 0;
+	rot << cos(0),sin(0);
+	edge_trans.so2().setComplex(rot);
+	edge_trans.translation() << 1, 0;
 	tunnelPoseVertexList[1]->setPose(1, edge_trans);
 
 	/*rot << cos(M_PI/4),sin(M_PI/4);
@@ -86,7 +91,7 @@ void buildGraph()
 
 	rot << cos(0),sin(0);
 	edge_trans.so2().setComplex(rot);
-	edge_trans.translation() << 0.8, 0;
+	edge_trans.translation() << 0.5, 0;
 	robotPoseEdgeList.push_back(addRobotEdge(edge_trans, Eigen::Matrix3d::Identity(), robotPoseVertexList[0], robotPoseVertexList[1]));
 
 	rot << cos(0),sin(0);
@@ -94,10 +99,14 @@ void buildGraph()
 	edge_trans.translation() << 0, -1;
 	robotPoseEdgeList.push_back(addRobotEdge(edge_trans, Eigen::Matrix3d::Identity(), robotPoseVertexList[0], tunnelPoseVertexList[0]));
 
-	rot << cos(M_PI/2),sin(M_PI/2);
+	rot << cos(M_PI/8),sin(M_PI/8);
 	edge_trans.so2().setComplex(rot);
 	edge_trans.translation() << 0, -1;
 	robotPoseEdgeList.push_back(addRobotEdge(edge_trans, Eigen::Matrix3d::Identity(), robotPoseVertexList[1], tunnelPoseVertexList[1]));
+
+	//Constrant between tunnel segments
+	tunnelEdgeList.push_back(addTunnelEdge(tunnelPoseVertexList[0], tunnelPoseVertexList[1]));
+	//tunnelEdgeList.push_back(addTunnelEdge(tunnelPoseVertexList[1], tunnelPoseVertexList[0]));
 }
 
 void drawGraph()
@@ -126,15 +135,12 @@ void drawGraph()
 	}
 
 	for (TunnelOrient *vertex : tunnelPoseVertexList) {
-		Sophus::SE2d center_pose = vertex->estimate();
+		Eigen::Vector2d center_pose_loc = vertex->getPose(0).translation()*100;
 		for (int i=-NUM_TUNNEL_SEGMENTS/2; i<=NUM_TUNNEL_SEGMENTS/2; i++) {
 			Sophus::SE2d pose = vertex->getPose(i);
-			if (i != 0) {
-				pose = center_pose*pose;
-			}
 
 			Eigen::Vector2d location = pose.translation()*100;
-			float angle = atan2(pose.rotationMatrix()(0,1), pose.rotationMatrix()(0,0));
+			float angle = -atan2(pose.rotationMatrix()(0,1), pose.rotationMatrix()(0,0));
 
 			sf::ConvexShape *convex = new sf::ConvexShape();
 			convex->setPointCount(3);
@@ -153,6 +159,16 @@ void drawGraph()
 
 			//std::cout << convex->getPosition() << "\n";
 			shapes.push_back(convex);
+
+
+			//Draw lines between segments
+			//Have to malloc so we don't go out of scope
+			sf::Vertex *line = (sf::Vertex *)malloc(2*sizeof(sf::Vertex));
+
+			line[0] = sf::Vertex(sf::Vector2f(center_pose_loc[0] + 100, center_pose_loc[1]+100));
+			line[1] = sf::Vertex(sf::Vector2f(location[0] + 100, location[1]+100));
+
+			lines.push_back(line);
 		}
 	}
  
@@ -228,6 +244,22 @@ EdgeSE2* addRobotEdge(Sophus::SE2d meas, Eigen::Matrix3d cov, VertexSE2* v0, Ver
 
 	edge->setVertex(0, v0);
 	edge->setVertex(1, v1);
+	graph.addEdge(edge);
+
+	return edge;
+}
+
+TunnelAlignEdge* addTunnelEdge(TunnelOrient *t0, TunnelOrient *t1)
+{
+	TunnelAlignEdge* edge = new TunnelAlignEdge();
+	edge->setId(numTunnelEdges++);
+	edge->setInformation(Eigen::Matrix2d::Identity());
+	//edge->setRobustKernel(constraint->robustKernel);
+
+	edge->resize(2);
+
+	edge->setVertex(0, t0);
+	edge->setVertex(1, t1);
 	graph.addEdge(edge);
 
 	return edge;
